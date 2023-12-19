@@ -43,27 +43,28 @@ int main(void)
 	uint32_t volatile *pGpio_A_PupdReg= (uint32_t *) Gpio_A_PupdData_Reg;
 	*pGpio_A_PupdReg|=(2<<0);	//Setting GpioA0 as default pull down
 	*pGpio_A_ModeReg&=~(3<<0); //Clearing bits 0 and 1 for GPIO_A0 and by default it is in input mode
-
+	uint32_t volatile temp=*pGpio_A_InputReg;
 	while(1)
 	{
-		*pGpio_D_OutputReg|=(1<<12);
-		for(int i=0;i<=100000;i++)
-		{
-		}
-		*pGpio_D_OutputReg|=(1<<13);
-		for(int i=0;i<=100000;i++)
-		{
-		}
-		*pGpio_D_OutputReg|=(1<<14);
-		for(int i=0;i<=100000;i++)
-		{
-		}
-		uint32_t volatile temp=*pGpio_A_InputReg;
+		temp=*pGpio_A_InputReg;
 		if(!(temp&=0x1))									//if user button is pressed temp=1 if user button is not pressed temp=0
-		{	*pGpio_D_OutputReg|=(1<<15);
-				for(int i=0;i<=100000;i++)
-				{
-				}
+		{
+			*pGpio_D_OutputReg|=(1<<12);
+			for(int i=0;i<=100000;i++)
+			{
+			}
+			*pGpio_D_OutputReg|=(1<<13);
+			for(int i=0;i<=100000;i++)
+			{
+			}
+			*pGpio_D_OutputReg|=(1<<14);
+			for(int i=0;i<=100000;i++)
+			{
+			}
+			*pGpio_D_OutputReg|=(1<<15);
+			for(int i=0;i<=100000;i++)
+			{
+			}
 		}
 
 		*pGpio_D_OutputReg&=~(1<<12);
