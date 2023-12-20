@@ -30,7 +30,7 @@
 #define Gpio_A_PupdData_Reg ((0x40020000)+(0x0C))
 
 void turnoffall_LEDS(void);
-bool isButtonPushed(volatile bool *,volatile const uint32_t*);
+bool isButtonPushed(volatile bool *,volatile bool *,volatile const uint32_t*);
 int main(void)
 {
 	volatile uint32_t * const pClockEnReg= (uint32_t *) Gpio_Clock_Enable;
@@ -50,23 +50,21 @@ int main(void)
 	*pGpio_A_PupdReg|=(2<<0);	//Setting GpioA0 as default pull down
 	*pGpio_A_ModeReg&=~(3<<0); //Clearing bits 0 and 1 for GPIO_A0 and by default it is in input mode
 	bool volatile toggle=FALSE;
+	bool volatile status=FALSE;
 	while(1)
 		{
-			if(isButtonPushed(&toggle,pGpio_A_InputReg))
+		status=FALSE;
+			if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 				{
-
-					for(int i=0;i<=100000;i++)
-					{
-
-					}
+				status=TRUE;
 					while(toggle)	//if user button is pressed temp=1 if user button is not pressed temp=0
 					{
 							if(toggle)
 							{
-								*pGpio_D_OutputReg|=(1<<12);
+								*pGpio_D_OutputReg|=(1<<12);	//Turning on GREEN LED
 								for(int i=0;i<=100000;i++)
 								{
-									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
 										break;
 									}
@@ -78,10 +76,10 @@ int main(void)
 							}
 							if(toggle)
 							{
-								*pGpio_D_OutputReg|=(1<<13);
+								*pGpio_D_OutputReg|=(1<<13);	//Turning on ORANGE LED
 								for(int i=0;i<=100000;i++)
 								{
-									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
 										break;
 									}
@@ -93,10 +91,10 @@ int main(void)
 							}
 							if(toggle)
 							{
-								*pGpio_D_OutputReg|=(1<<14);
+								*pGpio_D_OutputReg|=(1<<14);	//Turning on RED LED
 								for(int i=0;i<=100000;i++)
 								{
-									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
 										break;
 									}
@@ -108,10 +106,10 @@ int main(void)
 							}
 							if(toggle)
 							{
-								*pGpio_D_OutputReg|=(1<<15);
+								*pGpio_D_OutputReg|=(1<<15);	//Turning on BLUE LED
 								for(int i=0;i<=100000;i++)
 								{
-									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
 										break;
 									}
@@ -121,34 +119,37 @@ int main(void)
 							{
 								break;
 							}
-							*pGpio_D_OutputReg&=~(1<<12);
+							*pGpio_D_OutputReg&=~(1<<12);	//Turning off GREEN LED
 							for(int i=0;i<=100000;i++)
 							{
-								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
 									break;
 								}
 							}
-							*pGpio_D_OutputReg&=~(1<<13);
+							*pGpio_D_OutputReg&=~(1<<13);	//Turning off ORANGE LED
 							for(int i=0;i<=100000;i++)
 							{
-								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
 									break;
 								}
 							}
-							*pGpio_D_OutputReg&=~(1<<14);
+							*pGpio_D_OutputReg&=~(1<<14);	//Turning off RED LED
 							for(int i=0;i<=100000;i++)
 							{
-								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
 									break;
 								}
 							}
-							*pGpio_D_OutputReg&=~(1<<15);
-							if(isButtonPushed(&toggle,pGpio_A_InputReg))
+							*pGpio_D_OutputReg&=~(1<<15);	//Turning off BLUE LED
+							for(int i=0;i<=100000;i++)
 							{
-								break;
+								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
+								{
+									break;
+								}
 							}
 						}
 				}
@@ -159,26 +160,89 @@ int main(void)
 }
 
 
-bool isButtonPushed(volatile bool *toggle,volatile const uint32_t* pGpio_A_InputReg)
+bool isButtonPushed(volatile bool *toggle,volatile bool * status,volatile const uint32_t* pGpio_A_InputReg)
 {
+	volatile uint32_t * const pGpio_D_OutputReg = (uint32_t *) Gpio_D_OutputData_Reg;
 	uint32_t volatile temp=*pGpio_A_InputReg;
 	temp&=0x1;
+	uint32_t volatile tempOutput=*pGpio_D_OutputReg;
 	if(temp)
 	{
-		for(int i=0;i<=250000;i++)//software delay if the button is pushed
+		if(*status==TRUE)		// if the status is active
 		{
+			*pGpio_D_OutputReg|=(1<<15); 		//Turning on BLUE LED indicating that the system is ready
+			for(int i=0;i<=500000;i++)//software delay if the button is pushed
+			{
+			}
+			*pGpio_D_OutputReg&=~(1<<15); 		//Turning off the BLUE LED/ Button was held for too long
+			temp=*pGpio_A_InputReg;
+			temp&=0x1;
+
+			if(temp)		//if the button is pressed for too long the order will be cancelled indicated with a red LED
+			{
+				while(temp)
+				{
+					temp=*pGpio_A_InputReg;
+					temp&=0x1;
+					*pGpio_D_OutputReg|=(1<<14);	//Turning on RED LED
+					for(int i=0;i<=250000;i++)
+					{
+					}
+					*pGpio_D_OutputReg&=~(1<<14);	//Turning off RED LED
+					for(int i=0;i<=250000;i++)
+					{
+					}
+				}
+				*pGpio_D_OutputReg=tempOutput;
+				return FALSE;
+			}
+			else
+			{
+				*toggle=FALSE;
+				turnoffall_LEDS();
+				return TRUE;
+			}
+
 		}
-		if(*toggle==TRUE)
+
+
+
+		else		// if the status is inactive
 		{
-			*toggle=FALSE;
-			turnoffall_LEDS();
-			return TRUE;
+			*pGpio_D_OutputReg|=(1<<15); 		//Turning on BLUE LED indicating that the system is ready
+			for(int i=0;i<=500000;i++)//software delay if the button is pushed
+			{
+			}
+			*pGpio_D_OutputReg&=~(1<<15); 		//Turning off the BLUE LED/ Button was held for too long
+			temp=*pGpio_A_InputReg;
+			temp&=0x1;
+			if(temp)		//if the button is pressed for too long the order will be cancelled indicated with a red LED
+			{
+				while(temp)
+				{
+					temp=*pGpio_A_InputReg;
+					temp&=0x1;
+					*pGpio_D_OutputReg|=(1<<14);	//Turning on RED LED
+					for(int i=0;i<=250000;i++)
+					{
+					}
+					*pGpio_D_OutputReg&=~(1<<14);	//Turning off RED LED
+					for(int i=0;i<=250000;i++)
+					{
+					}
+				}
+				*toggle=FALSE;
+				*status=FALSE;
+				return FALSE;
+			}
+			else
+			{
+				*toggle=TRUE;
+				return TRUE;
+			}
 		}
-		else
-		{
-			*toggle=TRUE;
-			return TRUE;
-		}
+
+
 	}
 	else
 	{
