@@ -18,18 +18,24 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
+#define TRUE 1
+#define FALSE 0
 #define Gpio_Clock_Enable ((0x40023800)+(0x30))
 #define Gpio_D_Mode_BaseAddr (0x40020C00)
 #define Gpio_D_OutputData_Reg ((0x40020C00)+(0x14))
 #define Gpio_A_Mode_BaseAddr (0x40020000)
 #define Gpio_A_InputData_Reg ((0x40020000)+(0x10))
 #define Gpio_A_PupdData_Reg ((0x40020000)+(0x0C))
+
+void turnoffall_LEDS(void);
+bool isButtonPushed(volatile bool *,volatile const uint32_t*);
 int main(void)
 {
-	uint32_t volatile *pClockEnReg= (uint32_t *) Gpio_Clock_Enable;
-	uint32_t volatile *pGpio_D_ModeReg= (uint32_t *) Gpio_D_Mode_BaseAddr;
-	uint32_t volatile *pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
+	volatile uint32_t * const pClockEnReg= (uint32_t *) Gpio_Clock_Enable;
+	volatile uint32_t * const pGpio_D_ModeReg= (uint32_t *) Gpio_D_Mode_BaseAddr;
+	volatile uint32_t * const pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
 	*pClockEnReg|=(1<<3);		//Enabling GpioD clock
 	*pGpio_D_ModeReg&=~(3<<24); //Clearing the bits for 12th pin  1111 1100 1111 1111 GREEN LED
 	*pGpio_D_ModeReg|= (1<<24);	//Setting bit 24 (PD12) for output GREEN LED
@@ -38,51 +44,155 @@ int main(void)
 	*pGpio_D_ModeReg|= (1<<30);	//Setting bit 30 (PD15)for output BLUE LED
 
 	*pClockEnReg|=(1<<0);	//Enabling GpioA clock
-	uint32_t volatile *pGpio_A_ModeReg=(uint32_t *) Gpio_A_Mode_BaseAddr;
-	uint32_t volatile *pGpio_A_InputReg= (uint32_t *) Gpio_A_InputData_Reg;
-	uint32_t volatile *pGpio_A_PupdReg= (uint32_t *) Gpio_A_PupdData_Reg;
+	volatile uint32_t* const pGpio_A_ModeReg=(uint32_t *) Gpio_A_Mode_BaseAddr;
+	volatile uint32_t* const pGpio_A_InputReg= (uint32_t *) Gpio_A_InputData_Reg;
+	volatile uint32_t* const pGpio_A_PupdReg= (uint32_t *) Gpio_A_PupdData_Reg;
 	*pGpio_A_PupdReg|=(2<<0);	//Setting GpioA0 as default pull down
 	*pGpio_A_ModeReg&=~(3<<0); //Clearing bits 0 and 1 for GPIO_A0 and by default it is in input mode
-	uint32_t volatile temp=*pGpio_A_InputReg;
+	bool volatile toggle=FALSE;
 	while(1)
-	{
-		temp=*pGpio_A_InputReg;
-		if(!(temp&=0x1))									//if user button is pressed temp=1 if user button is not pressed temp=0
 		{
-			*pGpio_D_OutputReg|=(1<<12);
-			for(int i=0;i<=100000;i++)
-			{
-			}
-			*pGpio_D_OutputReg|=(1<<13);
-			for(int i=0;i<=100000;i++)
-			{
-			}
-			*pGpio_D_OutputReg|=(1<<14);
-			for(int i=0;i<=100000;i++)
-			{
-			}
-			*pGpio_D_OutputReg|=(1<<15);
-			for(int i=0;i<=100000;i++)
-			{
-			}
+			if(isButtonPushed(&toggle,pGpio_A_InputReg))
+				{
+
+					for(int i=0;i<=100000;i++)
+					{
+
+					}
+					while(toggle)	//if user button is pressed temp=1 if user button is not pressed temp=0
+					{
+							if(toggle)
+							{
+								*pGpio_D_OutputReg|=(1<<12);
+								for(int i=0;i<=100000;i++)
+								{
+									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									{
+										break;
+									}
+								}
+							}
+							else
+							{
+								break;
+							}
+							if(toggle)
+							{
+								*pGpio_D_OutputReg|=(1<<13);
+								for(int i=0;i<=100000;i++)
+								{
+									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									{
+										break;
+									}
+								}
+							}
+							else
+							{
+								break;
+							}
+							if(toggle)
+							{
+								*pGpio_D_OutputReg|=(1<<14);
+								for(int i=0;i<=100000;i++)
+								{
+									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									{
+										break;
+									}
+								}
+							}
+							else
+							{
+								break;
+							}
+							if(toggle)
+							{
+								*pGpio_D_OutputReg|=(1<<15);
+								for(int i=0;i<=100000;i++)
+								{
+									if(isButtonPushed(&toggle,pGpio_A_InputReg))
+									{
+										break;
+									}
+								}
+							}
+							else
+							{
+								break;
+							}
+							*pGpio_D_OutputReg&=~(1<<12);
+							for(int i=0;i<=100000;i++)
+							{
+								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								{
+									break;
+								}
+							}
+							*pGpio_D_OutputReg&=~(1<<13);
+							for(int i=0;i<=100000;i++)
+							{
+								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								{
+									break;
+								}
+							}
+							*pGpio_D_OutputReg&=~(1<<14);
+							for(int i=0;i<=100000;i++)
+							{
+								if(isButtonPushed(&toggle,pGpio_A_InputReg))
+								{
+									break;
+								}
+							}
+							*pGpio_D_OutputReg&=~(1<<15);
+							if(isButtonPushed(&toggle,pGpio_A_InputReg))
+							{
+								break;
+							}
+						}
+				}
+
+
 		}
 
-		*pGpio_D_OutputReg&=~(1<<12);
-		for(int i=0;i<=100000;i++)
+}
+
+
+bool isButtonPushed(volatile bool *toggle,volatile const uint32_t* pGpio_A_InputReg)
+{
+	uint32_t volatile temp=*pGpio_A_InputReg;
+	temp&=0x1;
+	if(temp)
+	{
+		for(int i=0;i<=250000;i++)//software delay if the button is pushed
 		{
 		}
-		*pGpio_D_OutputReg&=~(1<<13);
-		for(int i=0;i<=100000;i++)
+		if(*toggle==TRUE)
 		{
+			*toggle=FALSE;
+			turnoffall_LEDS();
+			return TRUE;
 		}
-		*pGpio_D_OutputReg&=~(1<<14);
-		for(int i=0;i<=100000;i++)
+		else
 		{
-		}
-		*pGpio_D_OutputReg&=~(1<<15);
-		for(int i=0;i<=100000;i++)
-		{
+			*toggle=TRUE;
+			return TRUE;
 		}
 	}
+	else
+	{
+		return FALSE;
+	}
 
+}
+
+
+void turnoffall_LEDS(void)
+{
+	uint32_t volatile *pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
+	*pGpio_D_OutputReg&=~(1<<12);
+	*pGpio_D_OutputReg&=~(1<<13);
+	*pGpio_D_OutputReg&=~(1<<14);
+	*pGpio_D_OutputReg&=~(1<<15);
 }
