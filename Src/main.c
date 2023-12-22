@@ -17,6 +17,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -24,24 +25,50 @@
 #define FALSE 0
 #define Gpio_Clock_Enable ((0x40023800)+(0x30))
 #define Gpio_D_Mode_BaseAddr (0x40020C00)
+#define Gpio_D_PupdData_Reg ((0x40020C00)+(0x0C))
+#define Gpio_D_InputData_Reg ((0x40020C00)+(0x10))
 #define Gpio_D_OutputData_Reg ((0x40020C00)+(0x14))
+
 #define Gpio_A_Mode_BaseAddr (0x40020000)
 #define Gpio_A_InputData_Reg ((0x40020000)+(0x10))
 #define Gpio_A_PupdData_Reg ((0x40020000)+(0x0C))
 
-void turnoffall_LEDS(void);
-bool isButtonPushed(volatile bool *,volatile bool *,volatile const uint32_t*);
+void turnoffall_LEDS(void);			//Turns off all LEDS on board
+void turnoonall_LEDS(void);			//Turns on all LEDS on board
+bool isButtonPushed(volatile bool *,volatile bool *,volatile const uint32_t*);		//Checks if the on board button is pushed
+int scanButtoninput(volatile const uint32_t*,volatile  uint32_t* const, const uint32_t);	//Takes input from 4x4 numerical pad
 int main(void)
 {
-	volatile uint32_t * const pClockEnReg= (uint32_t *) Gpio_Clock_Enable;
-	volatile uint32_t * const pGpio_D_ModeReg= (uint32_t *) Gpio_D_Mode_BaseAddr;
-	volatile uint32_t * const pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
+	volatile uint32_t* const pClockEnReg= (uint32_t *) Gpio_Clock_Enable;
+	volatile uint32_t* const pGpio_D_ModeReg= (uint32_t *) Gpio_D_Mode_BaseAddr;
+	volatile uint32_t* const pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
+	volatile uint32_t* const pGpio_D_PupdReg= (uint32_t *) Gpio_D_PupdData_Reg;
+	volatile uint32_t* const pGpio_D_InputReg= (uint32_t *) Gpio_D_InputData_Reg;
 	*pClockEnReg|=(1<<3);		//Enabling GpioD clock
 	*pGpio_D_ModeReg&=~(3<<24); //Clearing the bits for 12th pin  1111 1100 1111 1111 GREEN LED
 	*pGpio_D_ModeReg|= (1<<24);	//Setting bit 24 (PD12) for output GREEN LED
 	*pGpio_D_ModeReg|= (1<<26);	//Setting bit 26 (PD13) for output ORANGE LED
 	*pGpio_D_ModeReg|= (1<<28);	//Setting bit 28 (PD14)for output RED LED
 	*pGpio_D_ModeReg|= (1<<30);	//Setting bit 30 (PD15)for output BLUE LED
+
+	*pGpio_D_ModeReg&=~(0x00FF0000);	//Clearing the bits for GPIOD 8,9,10,11
+	*pGpio_D_ModeReg&=~(0x000000FF);	//Clearing the bits for GPIOD 0,1,2,3
+
+	*pGpio_D_ModeReg|= (1<<0);		//Setting GPIOD0 as output
+	*pGpio_D_ModeReg|= (1<<2);		//Setting GPIOD1 as output
+	*pGpio_D_ModeReg|= (1<<4);		//Setting GPIOD2 as output
+	*pGpio_D_ModeReg|= (1<<6);		//Setting GPIOD3 as output
+	//GPIOD 8,9,10,11 are set as input by default
+	*pGpio_D_PupdReg&=~(0x000000FF);	//Clearing the bits for GPIOD 0,1,2,3
+	*pGpio_D_PupdReg&=~(0x00FF0000);	//Clearing the bits for GPIOD 8,9,10,11
+	*pGpio_D_PupdReg|=(2<<16);		//Setting GPIOD 8 as pull down
+	*pGpio_D_PupdReg|=(2<<18);		//Setting GPIOD 9 as pull down
+	*pGpio_D_PupdReg|=(2<<20);		//Setting GPIOD 10 as pull down
+	*pGpio_D_PupdReg|=(2<<22);		//Setting GPIOD 11 as pull down
+
+	*pGpio_D_OutputReg&=~(0xF);		//Clearing output pins for GPIOD 0,1,2,3
+	*pGpio_D_InputReg&=~(0x0F00);	//Clearing input pins for GPIOD 8,9,10,11
+
 
 	*pClockEnReg|=(1<<0);	//Enabling GpioA clock
 	volatile uint32_t* const pGpio_A_ModeReg=(uint32_t *) Gpio_A_Mode_BaseAddr;
@@ -57,12 +84,14 @@ int main(void)
 			if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 				{
 				status=TRUE;
+				volatile uint32_t turnonDelay=50000;
+				turnonDelay=scanButtoninput(pGpio_D_InputReg,pGpio_D_OutputReg,turnonDelay);
 					while(toggle)	//if user button is pressed temp=1 if user button is not pressed temp=0
 					{
 							if(toggle)
 							{
 								*pGpio_D_OutputReg|=(1<<12);	//Turning on GREEN LED
-								for(int i=0;i<=100000;i++)
+								for(int i=0;i<=turnonDelay;i++)
 								{
 									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
@@ -77,7 +106,7 @@ int main(void)
 							if(toggle)
 							{
 								*pGpio_D_OutputReg|=(1<<13);	//Turning on ORANGE LED
-								for(int i=0;i<=100000;i++)
+								for(int i=0;i<=turnonDelay;i++)
 								{
 									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
@@ -92,7 +121,7 @@ int main(void)
 							if(toggle)
 							{
 								*pGpio_D_OutputReg|=(1<<14);	//Turning on RED LED
-								for(int i=0;i<=100000;i++)
+								for(int i=0;i<=turnonDelay;i++)
 								{
 									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
@@ -107,7 +136,7 @@ int main(void)
 							if(toggle)
 							{
 								*pGpio_D_OutputReg|=(1<<15);	//Turning on BLUE LED
-								for(int i=0;i<=100000;i++)
+								for(int i=0;i<=turnonDelay;i++)
 								{
 									if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 									{
@@ -120,7 +149,7 @@ int main(void)
 								break;
 							}
 							*pGpio_D_OutputReg&=~(1<<12);	//Turning off GREEN LED
-							for(int i=0;i<=100000;i++)
+							for(int i=0;i<=turnonDelay;i++)
 							{
 								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
@@ -128,7 +157,7 @@ int main(void)
 								}
 							}
 							*pGpio_D_OutputReg&=~(1<<13);	//Turning off ORANGE LED
-							for(int i=0;i<=100000;i++)
+							for(int i=0;i<=turnonDelay;i++)
 							{
 								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
@@ -136,7 +165,7 @@ int main(void)
 								}
 							}
 							*pGpio_D_OutputReg&=~(1<<14);	//Turning off RED LED
-							for(int i=0;i<=100000;i++)
+							for(int i=0;i<=turnonDelay;i++)
 							{
 								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
@@ -144,7 +173,7 @@ int main(void)
 								}
 							}
 							*pGpio_D_OutputReg&=~(1<<15);	//Turning off BLUE LED
-							for(int i=0;i<=100000;i++)
+							for(int i=0;i<=turnonDelay;i++)
 							{
 								if(isButtonPushed(&toggle,&status,pGpio_A_InputReg))
 								{
@@ -238,6 +267,7 @@ bool isButtonPushed(volatile bool *toggle,volatile bool * status,volatile const 
 			else
 			{
 				*toggle=TRUE;
+				*status=TRUE;
 				return TRUE;
 			}
 		}
@@ -259,4 +289,675 @@ void turnoffall_LEDS(void)
 	*pGpio_D_OutputReg&=~(1<<13);
 	*pGpio_D_OutputReg&=~(1<<14);
 	*pGpio_D_OutputReg&=~(1<<15);
+}
+
+void turnoonall_LEDS(void)
+{
+	uint32_t volatile *pGpio_D_OutputReg= (uint32_t *) Gpio_D_OutputData_Reg;
+	*pGpio_D_OutputReg|=(1<<12);
+	*pGpio_D_OutputReg|=(1<<13);
+	*pGpio_D_OutputReg|=(1<<14);
+	*pGpio_D_OutputReg|=(1<<15);
+}
+
+
+int scanButtoninput(volatile const uint32_t* inputReg,volatile uint32_t* const OutputReg, const uint32_t Defaultdelay)
+{
+	volatile char position[5]={'0','0','0','0','0'};
+	volatile uint32_t pushButton_Delay=400000;
+	volatile uint8_t counter=0;
+	while(1)
+	{
+		bool volatile toggle=FALSE;
+		bool volatile status=FALSE;
+		if(isButtonPushed(&toggle,&status,(uint32_t *) Gpio_A_InputData_Reg))
+		{
+			return 100000;
+		}
+		else
+		{
+			*OutputReg|=(1<<0);		//Check row 1 by turning GPIOD0 as High
+			for(int i=0;i<=3;i++)
+			{
+				volatile uint32_t temp=*inputReg;
+				temp=(temp>>(8+i));
+				if(temp&=1)
+				{
+					turnoonall_LEDS();
+					for(int i=0;i<=pushButton_Delay;i++)	//software delay if the button is pushed
+					{
+					}
+					if(i==0)
+					{
+						turnoffall_LEDS();
+						printf("1 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='1';
+						}
+						else	//sequence is too long to convert
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==1)
+					{
+						 ;
+						turnoffall_LEDS();
+						printf("2 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='2';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==2)
+					{
+
+						turnoffall_LEDS();
+						printf("3 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='3';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==3)
+					{
+
+						turnoffall_LEDS();
+						printf("A is pressed \n");
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						break;
+					}
+				}
+			}
+			*OutputReg&=~(1<<0);
+
+			*OutputReg|=(1<<1);		//Check row 2 by turning GPIOD1 as High
+			for(int i=0;i<=3;i++)
+			{
+				uint32_t temp=*inputReg;
+				temp=(temp>>(8+i));
+				if(temp&=1)
+				{
+					turnoonall_LEDS();
+					for(int i=0;i<=pushButton_Delay;i++)	//software delay if the button is pushed
+					{
+					}
+					if(i==0)
+					{
+						for(int i=0;i<=pushButton_Delay/8;i++)
+						{
+						}
+						turnoffall_LEDS();
+						printf("4 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='4';
+						}
+						else
+						{
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==1)
+					{
+
+						turnoffall_LEDS();
+						printf("5 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='5';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==2)
+					{
+
+						turnoffall_LEDS();
+						printf("6 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='6';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==3)
+					{
+
+						turnoffall_LEDS();
+						printf("B is pressed \n");
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						break;
+					}
+				}
+			}
+			*OutputReg&=~(1<<1);
+
+			*OutputReg|=(1<<2);		//Check row 3 by turning GPIOD2 as High
+			for(int i=0;i<=3;i++)
+			{
+				uint32_t temp=*inputReg;
+				temp=(temp>>(8+i));
+				if(temp&=1)
+				{
+					turnoonall_LEDS();
+					for(int i=0;i<=pushButton_Delay;i++)	//software delay if the button is pushed
+					{
+					}
+					if(i==0)
+					{
+
+						turnoffall_LEDS();
+						printf("7 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='7';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==1)
+					{
+
+						turnoffall_LEDS();
+						printf("8 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='8';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==2)
+					{
+
+						turnoffall_LEDS();
+						printf("9 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='9';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==3)
+					{
+
+						turnoffall_LEDS();
+						printf("C is pressed \n");
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						break;
+					}
+				}
+			}
+			*OutputReg&=~(1<<2);
+
+			*OutputReg|=(1<<3);		//Check row 4 by turning GPIOD3 as High
+			for(int i=0;i<=3;i++)
+			{
+				uint32_t temp=*inputReg;
+				temp=(temp>>(8+i));
+				if(temp&=1)
+				{
+					turnoonall_LEDS();
+					for(int i=0;i<=pushButton_Delay;i++)	//software delay if the button is pushed
+					{
+					}
+					if(i==0)
+					{
+
+						turnoffall_LEDS();
+						printf("* is pressed \n");
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						break;
+					}
+					if(i==1)
+					{
+
+						turnoffall_LEDS();
+						printf("0 is pressed \n");
+						if (counter<5)
+						{
+							position[counter]='0';
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						++counter;
+						break;
+					}
+					if(i==2)
+					{
+
+						turnoffall_LEDS();
+						printf("# is pressed \n");
+						if (counter<5)
+						{
+							volatile char readpos[counter];
+							for(int k=0;k<counter;k++)
+							{
+								readpos[k]=position[k];
+							}
+							volatile uint32_t val=1000*atoi((char *)readpos);
+							printf("readpos contains number : %d \n", atoi((char *)readpos));
+							if(val<=Defaultdelay)
+								return Defaultdelay;
+							else
+								return val;
+						}
+						else
+						{
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						}
+						break;
+					}
+					if(i==3)
+					{
+
+						turnoffall_LEDS();
+						printf("D is pressed \n");
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoonall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							turnoffall_LEDS();
+							for(int i=0;i<=pushButton_Delay/8;i++)
+							{
+							}
+							for(int j=0;j<5;j++)
+							{
+								position[j]='0';
+							}
+							counter=0;
+						break;
+					}
+				}
+			}
+			*OutputReg&=~(1<<3);
+		}
+	}
+
 }
